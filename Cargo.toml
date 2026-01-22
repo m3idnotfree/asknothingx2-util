@@ -1,3 +1,87 @@
-[workspace]
-resolver = "2"
-members = ["asknothingx2", "asknothingx2-eventsub", "asknothingx2-util"]
+[package]
+name = "asknothingx2-util"
+version = "0.1.11"
+edition = "2021"
+rust-version = "1.78"
+description = "asknothing"
+documentation = "https://docs.rs/asknothingx2-util"
+repository = "https://github.com/m3idnotfree/asknothingx2-util"
+license = "MIT OR Apache-2.0"
+keywords = ["asknothing", "client", "http", "oauth2", "web"]
+categories = [
+  "api-bindings",
+  "authentication",
+  "network-programming",
+  "web-programming"
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+base64 = { version = "0.22.1", optional = true }
+bytes = { version = "1.11.0", optional = true }
+chrono = { version = "0.4.43", optional = true }
+futures-util = { version = "0.3.31", optional = true }
+hex = { version = "0.4.3", optional = true }
+hmac = { version = "0.12.1", optional = true }
+http = { version = "1.4.0", optional = true }
+percent-encoding = "2.3.2"
+rand = { version = "0.9.2", optional = true }
+reqwest = { version = "0.13.1", features = [
+  "brotli",
+  "cookies",
+  "gzip",
+  "hickory-dns",
+  "json",
+  "multipart",
+  "stream"
+], optional = true }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149", optional = true }
+serde_urlencoded = { version = "0.7.1", optional = true }
+sha2 = { version = "0.10.9", optional = true }
+subtle = { version = "2.6.1", optional = true }
+tokio = { version = "1.49.0", features = ["fs", "process", "sync"], optional = true }
+tokio-util = { version = "0.7.18", features = ["io"], optional = true }
+tracing = { version = "0.1.44", optional = true }
+url = { version = "2.5.8", optional = true }
+zeroize = { version = "1.8.2", features = ["derive"], optional = true }
+
+[dev-dependencies]
+futures = "0.3.31"
+proptest = "1.9.0"
+serde_json = "1.0.149"
+tempfile = "3.24.0"
+tokio = { version = "1.49.0", features = ["full"] }
+tokio-test = "0.4.5"
+wiremock = "0.6.5"
+
+[features]
+api = [
+  "base64",
+  "bytes",
+  "dep:reqwest",
+  "dep:tokio",
+  "http",
+  "serde_json",
+  "serde_urlencoded",
+  "tracing",
+  "url"
+]
+full = ["api", "oauth"]
+oauth = [
+  "base64",
+  "chrono",
+  "hex",
+  "hmac",
+  "rand",
+  "sha2",
+  "subtle",
+  "url",
+  "zeroize"
+]
+reqwest = ["dep:reqwest"]
+serde = ["serde_json"]
+stream = ["futures-util", "tokio-util"]

@@ -30,7 +30,7 @@ use std::{
     str::FromStr,
 };
 
-use http::{header::CONTENT_TYPE, HeaderMap, HeaderValue};
+use http::{HeaderMap, HeaderValue, header::CONTENT_TYPE};
 
 use super::error;
 

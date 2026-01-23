@@ -1,9 +1,9 @@
 use std::fmt;
 
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use http::HeaderValue;
 
-use super::{error, Error};
+use super::{Error, error};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum AuthScheme<'a> {
@@ -193,16 +193,17 @@ impl<'a> AuthScheme<'a> {
                 region,
                 service,
                 date,
-            } =>  format!("AWS4-HMAC-SHA256 Credential={access_key}/{date}/{region}/{service}/aws4_request, SignedHeaders=host;x-amz-date, Signature={signature}"),
+            } => format!(
+                "AWS4-HMAC-SHA256 Credential={access_key}/{date}/{region}/{service}/aws4_request, SignedHeaders=host;x-amz-date, Signature={signature}"
+            ),
             AuthScheme::Custom {
                 scheme,
                 credentials,
-            } => 
-                format!("{scheme} {credentials}"),
-           
+            } => format!("{scheme} {credentials}"),
         };
 
-        let mut value = HeaderValue::from_str(&auth_string).map_err(|_|error::auth::invalid_scheme(auth_string))?;
+        let mut value = HeaderValue::from_str(&auth_string)
+            .map_err(|_| error::auth::invalid_scheme(auth_string))?;
         value.set_sensitive(true);
         Ok(value)
     }
@@ -248,59 +249,59 @@ impl<'a> fmt::Display for AuthScheme<'a> {
 impl<'a> fmt::Debug for AuthScheme<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AuthScheme::Basic { username, password: _ } => f
+            AuthScheme::Basic {
+                username,
+                password: _,
+            } => f
                 .debug_struct("Basic")
                 .field("username", username)
                 .field("password", &"[REDACTED]")
                 .finish(),
-            
+
             AuthScheme::Bearer { token: _ } => f
                 .debug_struct("Bearer")
                 .field("token", &"[REDACTED]")
                 .finish(),
-            
-            AuthScheme::Digest(digest) => f
-                .debug_tuple("Digest")
-                .field(digest)
-                .finish(),
-            
+
+            AuthScheme::Digest(digest) => f.debug_tuple("Digest").field(digest).finish(),
+
             AuthScheme::HOBA { result: _ } => f
                 .debug_struct("HOBA")
                 .field("result", &"[REDACTED]")
                 .finish(),
-            
+
             AuthScheme::Mutual { credentials: _ } => f
                 .debug_struct("Mutual")
                 .field("credentials", &"[REDACTED]")
                 .finish(),
-            
+
             AuthScheme::Negotiate { token: _ } => f
                 .debug_struct("Negotiate")
                 .field("token", &"[REDACTED]")
                 .finish(),
-            
-            AuthScheme::Vapid { 
-                public_key: _, 
-                subject, 
-                signature: _ 
+
+            AuthScheme::Vapid {
+                public_key: _,
+                subject,
+                signature: _,
             } => f
                 .debug_struct("Vapid")
                 .field("public_key", &"[REDACTED]")
                 .field("subject", subject)
                 .field("signature", &"[REDACTED]")
                 .finish(),
-            
-            AuthScheme::Scram { 
-                variant, 
-                credentials: _ 
+
+            AuthScheme::Scram {
+                variant,
+                credentials: _,
             } => f
                 .debug_struct("Scram")
                 .field("variant", variant)
                 .field("credentials", &"[REDACTED]")
                 .finish(),
-            
+
             AuthScheme::Aws4HmacSha256 {
-                access_key:_,
+                access_key: _,
                 signature: _,
                 region,
                 service,
@@ -313,10 +314,10 @@ impl<'a> fmt::Debug for AuthScheme<'a> {
                 .field("service", service)
                 .field("date", date)
                 .finish(),
-            
-            AuthScheme::Custom { 
-                scheme, 
-                credentials: _ 
+
+            AuthScheme::Custom {
+                scheme,
+                credentials: _,
             } => f
                 .debug_struct("Custom")
                 .field("scheme", scheme)

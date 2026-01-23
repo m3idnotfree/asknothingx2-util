@@ -28,7 +28,7 @@
 //! // Validate within 1 hour
 //! assert!(signed_token::verify(&secret, &token, Some("user123"), 3600).is_ok());
 //! ```
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, TimeZone, Utc};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;

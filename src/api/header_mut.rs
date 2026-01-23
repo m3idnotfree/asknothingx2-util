@@ -1,18 +1,18 @@
 use http::{
+    HeaderMap, HeaderName, HeaderValue,
     header::{
         ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, ACCESS_CONTROL_ALLOW_HEADERS,
         ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN, AUTHORIZATION, CACHE_CONTROL,
         CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, ORIGIN, REFERER, USER_AGENT,
     },
-    HeaderMap, HeaderName, HeaderValue,
 };
 
 use crate::api::{
-    mime_type::{Application, Multipart, Text},
     AuthScheme,
+    mime_type::{Application, Multipart, Text},
 };
 
-use super::{error, Error};
+use super::{Error, error};
 
 pub mod headers {
     use http::HeaderName;

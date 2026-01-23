@@ -6,13 +6,14 @@ use std::time::Duration;
 
 use http::HeaderMap;
 use reqwest::{
+    Client, Proxy,
     redirect::{self, Policy},
-    tls, Client, Proxy,
+    tls,
 };
 
 use super::{
-    error::{self, Error},
     HeaderMut,
+    error::{self, Error},
 };
 
 mod user_agents {

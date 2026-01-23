@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use asknothingx2_util::oauth::signed_token::{
-    current_timestamp, extract_datetime, extract_timestamp, generate, generate_secret_key,
-    is_expired, token_age, verify, verify_with_config, TokenConfig, TokenError,
+    TokenConfig, TokenError, current_timestamp, extract_datetime, extract_timestamp, generate,
+    generate_secret_key, is_expired, token_age, verify, verify_with_config,
 };
 use chrono::Utc;
 
@@ -23,29 +23,35 @@ async fn clock_skew_tolerance() {
     let secret_key = generate_secret_key();
     let token = generate(&secret_key, Some("user123"));
 
-    assert!(verify_with_config(
-        &secret_key,
-        &token,
-        Some("user123"),
-        &TokenConfig::new(3, 3600)
-    )
-    .is_ok());
-    assert!(verify_with_config(
-        &secret_key,
-        &token,
-        Some("user456"),
-        &TokenConfig::new(3, 3600)
-    )
-    .is_err());
+    assert!(
+        verify_with_config(
+            &secret_key,
+            &token,
+            Some("user123"),
+            &TokenConfig::new(3, 3600)
+        )
+        .is_ok()
+    );
+    assert!(
+        verify_with_config(
+            &secret_key,
+            &token,
+            Some("user456"),
+            &TokenConfig::new(3, 3600)
+        )
+        .is_err()
+    );
 
     tokio::time::sleep(Duration::from_secs(1)).await;
-    assert!(verify_with_config(
-        &secret_key,
-        &token,
-        Some("user123"),
-        &TokenConfig::new(3, 0)
-    )
-    .is_ok());
+    assert!(
+        verify_with_config(
+            &secret_key,
+            &token,
+            Some("user123"),
+            &TokenConfig::new(3, 0)
+        )
+        .is_ok()
+    );
 }
 
 #[test]
@@ -63,13 +69,15 @@ fn verify_token_with_errors() {
     let secret_key = generate_secret_key();
     let token = generate(&secret_key, Some("user123"));
 
-    assert!(verify_with_config(
-        &secret_key,
-        &token,
-        Some("user123"),
-        &TokenConfig::default()
-    )
-    .is_ok());
+    assert!(
+        verify_with_config(
+            &secret_key,
+            &token,
+            Some("user123"),
+            &TokenConfig::default()
+        )
+        .is_ok()
+    );
 
     assert_eq!(
         verify_with_config(

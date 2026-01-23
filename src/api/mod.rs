@@ -10,7 +10,7 @@ pub use error::{Error, Kind};
 pub use header_mut::HeaderMut;
 
 // Re-export
-pub use http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
+pub use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 
 #[cfg(feature = "reqwest")]
 pub use reqwest;

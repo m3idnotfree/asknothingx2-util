@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use serde::{de::IntoDeserializer, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::IntoDeserializer};
 
 /// <https://github.com/serde-rs/serde/issues/2362>
 pub fn deserialize_empty_object_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>

@@ -2,7 +2,7 @@
 
 #[cfg(feature = "api")]
 pub mod api;
-#[cfg(feature = "oauth")]
+#[cfg(any(feature = "oauth", feature = "oauth-server"))]
 pub mod oauth;
 #[cfg(feature = "serde")]
 pub mod serde;

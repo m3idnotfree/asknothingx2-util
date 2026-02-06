@@ -18,6 +18,7 @@ pub mod headers {
     use http::HeaderName;
 
     pub const CLIENT_ID: HeaderName = HeaderName::from_static("client-id");
+    pub const CLIENT_SECRET: HeaderName = HeaderName::from_static("client-secret");
     pub const X_API_KEY: HeaderName = HeaderName::from_static("x-api-key");
     pub const X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 }
@@ -86,6 +87,11 @@ impl<'a> HeaderMut<'a> {
     /// Client-Id: id
     pub fn client_id(&mut self, id: &str) -> Result<&mut Self, Error> {
         self.header_str_sensitive(headers::CLIENT_ID, id)
+    }
+
+    /// Client-Secret: secret
+    pub fn client_secret(&mut self, secret: &str) -> Result<&mut Self, Error> {
+        self.header_str_sensitive(headers::CLIENT_SECRET, secret)
     }
 
     /// User-Agent: agent

@@ -17,7 +17,7 @@ use super::{
 };
 
 mod user_agents {
-    pub const DEFAULT: &str = "asknothingx2/1.0";
+    pub const DEFAULT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 }
 
 /// HTTP client configuration preset with sensible defaults for various use cases.
@@ -29,7 +29,9 @@ mod user_agents {
 /// - Redirects: Up to 5 allowed
 /// - Cookies: Not saved, Referer: Sent
 /// - Compression: gzip enabled, brotli disabled
-/// - User-Agent: "asknothingx2/1.0"
+#[doc = concat!("- User-Agent: ",
+  env!("CARGO_PKG_NAME"), "/",
+  env!("CARGO_PKG_VERSION"))]
 /// - HTTP/2: Auto-negotiated (supports both HTTP/1.1 and HTTP/2)
 /// - TCP keep-alive: Disabled
 ///

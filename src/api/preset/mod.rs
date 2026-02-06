@@ -52,7 +52,7 @@ mod user_agents {
 /// use asknothingx2_util::api::preset::{self, Preset};
 ///
 /// // Using a predefined preset
-/// let client = preset::rest_api("MyApp/1.0").build_client()?;
+/// let client = preset::rest_api("MyApp/1.0").build()?;
 ///
 /// // Customizing with builder methods
 /// let mut preset = Preset::new();
@@ -60,7 +60,7 @@ mod user_agents {
 ///     .timeouts(Duration::from_secs(60), Duration::from_secs(5))
 ///     .http2(true, None);
 ///
-/// preset.build_client()?;
+/// preset.build()?;
 /// #     Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 ///
@@ -288,7 +288,7 @@ impl Preset {
 
 impl Preset {
     /// Build the configured [`reqwest::Client`] from this preset.
-    pub fn build_client(self) -> Result<Client, Error> {
+    pub fn build(self) -> Result<Client, Error> {
         let mut builder = Client::builder()
             .timeout(self.request_timeout)
             .connect_timeout(self.connect_timeout)
@@ -495,10 +495,10 @@ mod tests {
 
     #[test]
     pub fn build() {
-        rest_api("rest-api/1.0").build_client().unwrap();
-        authentication("auth/1.0").build_client().unwrap();
-        low_latency("real-time/1.0").build_client().unwrap();
-        testing("test/1.0").build_client().unwrap();
-        debugging("debug/1.0").build_client().unwrap();
+        rest_api("rest-api/1.0").build().unwrap();
+        authentication("auth/1.0").build().unwrap();
+        low_latency("real-time/1.0").build().unwrap();
+        testing("test/1.0").build().unwrap();
+        debugging("debug/1.0").build().unwrap();
     }
 }

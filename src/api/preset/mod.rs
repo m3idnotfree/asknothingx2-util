@@ -1,6 +1,7 @@
 mod extra_config;
 
 pub use extra_config::{Http2Settings, SecurityProfile};
+pub use reqwest::tls;
 
 use std::time::Duration;
 
@@ -8,7 +9,6 @@ use http::HeaderMap;
 use reqwest::{
     Client, Proxy,
     redirect::{self, Policy},
-    tls,
 };
 
 use super::{

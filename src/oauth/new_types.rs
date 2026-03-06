@@ -204,12 +204,14 @@ secret_type!(ClientSecret);
 secret_type!(AuthorizationCode);
 secret_type!(RefreshToken);
 secret_type!(AccessToken);
+secret_type!(DeviceCode);
 
 url_type!(AuthUrl);
 url_type!(TokenUrl);
 url_type!(RedirectUrl);
 url_type!(RevocationUrl);
 url_type!(ValidateUrl);
+url_type!(DeviceUrl);
 
 #[cfg(test)]
 mod tests {

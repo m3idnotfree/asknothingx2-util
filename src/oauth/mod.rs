@@ -9,6 +9,6 @@ mod new_types;
 
 #[cfg(feature = "oauth")]
 pub use new_types::{
-    AccessToken, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl,
-    RefreshToken, RevocationUrl, Scope, TokenUrl, ValidateUrl,
+    AccessToken, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, DeviceCode,
+    DeviceUrl, RedirectUrl, RefreshToken, RevocationUrl, Scope, TokenUrl, ValidateUrl,
 };

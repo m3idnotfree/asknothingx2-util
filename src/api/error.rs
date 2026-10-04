@@ -204,7 +204,10 @@ pub mod auth {
     pub fn invalid_scheme<S: Into<String>>(scheme: S) -> Error {
         Error::with_message(
             Kind::AuthInvalidScheme,
-            format!("invalid authentication scheme '{}'", scheme.into()),
+            format!(
+                "invalid authorization header value for scheme '{}'",
+                scheme.into()
+            ),
         )
     }
 }

@@ -329,7 +329,7 @@ impl Preset {
             builder = builder.proxy(proxy);
         }
 
-        builder.build().map_err(error::request::build)
+        builder.build().map_err(error::build)
     }
 }
 

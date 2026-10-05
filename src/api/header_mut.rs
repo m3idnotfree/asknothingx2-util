@@ -50,7 +50,7 @@ impl<'a> HeaderMut<'a> {
     }
 
     pub fn header_str(&mut self, key: HeaderName, value: &str) -> Result<&mut Self, Error> {
-        let val = HeaderValue::from_str(value).map_err(error::http::invalid_header)?;
+        let val = HeaderValue::from_str(value).map_err(|e| error::invalid_header_value(&key, e))?;
 
         self.header.insert(key, val);
         Ok(self)
@@ -61,7 +61,8 @@ impl<'a> HeaderMut<'a> {
         key: HeaderName,
         value: &str,
     ) -> Result<&mut Self, Error> {
-        let mut val = HeaderValue::from_str(value).map_err(error::http::invalid_header)?;
+        let mut val =
+            HeaderValue::from_str(value).map_err(|e| error::invalid_header_value(&key, e))?;
         val.set_sensitive(true);
 
         self.header.insert(key, val);
@@ -113,7 +114,7 @@ impl<'a> HeaderMut<'a> {
 
     /// X-API-Key: key
     pub fn api_key(&mut self, key: &str) -> Result<&mut Self, Error> {
-        self.header_str(headers::X_API_KEY, key)
+        self.header_str_sensitive(headers::X_API_KEY, key)
     }
 
     /// X-Request-ID: id

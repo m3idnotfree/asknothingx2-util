@@ -99,9 +99,7 @@ impl MimeType {
     }
 
     pub fn from_header_value(value: &HeaderValue) -> Result<Self, Error> {
-        let content_type = value
-            .to_str()
-            .map_err(|_| error::content::invalid_type("invalid UTF-8 in content type header"))?;
+        let content_type = value.to_str().map_err(error::mime_type_to_str)?;
 
         Self::from_str(content_type)
     }
@@ -304,9 +302,7 @@ impl<'a> ParsedMimeType<'a> {
     }
 
     pub fn parse(header_value: &'a HeaderValue) -> Result<Self, Error> {
-        let content_type_str = header_value
-            .to_str()
-            .map_err(|_| error::content::invalid_type("invalid UTF-8 in content type header"))?;
+        let content_type_str = header_value.to_str().map_err(error::mime_type_to_str)?;
 
         Self::parse_str(content_type_str)
     }
@@ -314,12 +310,8 @@ impl<'a> ParsedMimeType<'a> {
     pub fn parse_str(input: &'a str) -> Result<Self, Error> {
         let input = input.trim();
 
-        if input.is_empty() {
-            return Err(error::content::invalid_type("empty content type"));
-        }
-
         if input.len() > 1000 {
-            return Err(error::content::invalid_type("content type too long"));
+            return Err(error::mime_type_with_params_too_long());
         }
 
         if let Some(semicolon_pos) = input.find(';') {
@@ -327,9 +319,7 @@ impl<'a> ParsedMimeType<'a> {
             let parameters = input[semicolon_pos + 1..].trim();
 
             if !Self::is_valid_mime_type(mime_type) {
-                return Err(error::content::invalid_type(format!(
-                    "invalid MIME type: {mime_type}"
-                )));
+                return Err(error::mime_type_malformed(mime_type));
             }
 
             Ok(Self {
@@ -339,9 +329,7 @@ impl<'a> ParsedMimeType<'a> {
             })
         } else {
             if !Self::is_valid_mime_type(input) {
-                return Err(error::content::invalid_type(format!(
-                    "invalid MIME type: {input}"
-                )));
+                return Err(error::mime_type_malformed(input));
             }
 
             Ok(Self {

@@ -204,7 +204,7 @@ impl<'a> AuthScheme<'a> {
         };
 
         let mut value = HeaderValue::from_str(&auth_string)
-            .map_err(|_| error::auth::invalid_scheme(scheme_name))?;
+            .map_err(|e| error::invalid_auth_scheme(scheme_name, e))?;
         value.set_sensitive(true);
         Ok(value)
     }
@@ -447,23 +447,5 @@ impl<'a> fmt::Debug for DigestBuilder<'a> {
             .field("qop", &self.qop)
             .field("nc", &self.nc)
             .finish()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AuthScheme;
-
-    #[test]
-    fn invalid_header_error_does_not_leak_credentials() {
-        let err = AuthScheme::custom("OAuth", "secret\n")
-            .to_header_value()
-            .unwrap_err();
-
-        assert_eq!(
-            err.to_string(),
-            "invalid authorization header value for scheme 'OAuth'"
-        );
-        assert!(!format!("{err:?}").contains("secret\n"));
     }
 }

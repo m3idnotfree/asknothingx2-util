@@ -15,7 +15,7 @@ macro_rules! case_insensitive_match {
         )*
 
         else {
-            Err(crate::api::error::content::unsupported($input))
+            Err(crate::api::error::mime_type_unsupported($input))
         }
     };
 }
@@ -78,7 +78,7 @@ macro_rules! define_mime_type {
 
             pub fn from_header_value(value: &HeaderValue) -> Result<Self, Error> {
                 let content_type = value.to_str()
-                    .map_err(|_| error::content::invalid_type("invalid UTF-8 in header value"))?;
+                    .map_err(error::mime_type_to_str)?;
 
                 Self::from_str(content_type)
             }
@@ -192,21 +192,15 @@ macro_rules! define_mime_type {
             type Err = Error;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                if s.is_empty() {
-                    return Err(error::content::invalid_type("empty MIME type"));
-                }
-
                 let mime_type = s.split(';').next().unwrap_or(s).trim();
+
+                if mime_type.len() > 200 {
+                    return Err(error::mime_type_too_long());
+                }
 
                 // Validate basic MIME type format
                 if !mime_type.contains('/') {
-                    return Err(error::content::invalid_type(
-                        format!("invalid MIME type format: {}", mime_type)
-                    ));
-                }
-
-                if mime_type.len() > 200 {
-                    return Err(error::content::invalid_type("MIME type too long"));
+                    return Err(error::mime_type_malformed(mime_type));
                 }
 
                 case_insensitive_match!(mime_type, {

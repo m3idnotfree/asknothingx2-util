@@ -1,141 +1,79 @@
-use std::fmt;
+use std::{
+    error::Error as StdError,
+    fmt::{Debug, Display, Formatter, Result as FmtResult},
+};
 
-use ::http::header::{InvalidHeaderName, InvalidHeaderValue};
+use http::header::{HeaderName, InvalidHeaderValue, ToStrError};
 
 pub struct Error {
     inner: Box<Inner>,
 }
 
-#[derive(Debug)]
+type BoxError = Box<dyn StdError + Send + Sync>;
+
 struct Inner {
     kind: Kind,
-    message: Option<String>,
-    input: Option<String>,
     source: Option<BoxError>,
 }
 
-#[derive(Debug)]
-pub enum Kind {
-    RequestBuild,
-    HttpInvalidHeader,
-    AuthInvalidScheme,
-    ContentTypeInvalid,
-    ContentTypeUnsupported,
+enum Kind {
+    Build,
+    HeaderValue { name: HeaderName },
+    AuthScheme { scheme: String },
+    MimeType(MimeType),
 }
 
-impl Kind {
-    pub fn category(self) -> ErrorCategory {
+enum MimeType {
+    ToStr,
+    TooLong,
+    TooLongWithParams,
+    Malformed { input: String },
+    Unsupported { input: String },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ErrorKind {
+    Build,
+    Header,
+    AuthScheme,
+    MimeType,
+}
+
+impl ErrorKind {
+    pub const fn as_str(self) -> &'static str {
         match self {
-            Kind::RequestBuild => ErrorCategory::Request,
-            Kind::HttpInvalidHeader => ErrorCategory::Http,
-            Kind::AuthInvalidScheme => ErrorCategory::Authentication,
-            Kind::ContentTypeInvalid | Kind::ContentTypeUnsupported => ErrorCategory::ContentType,
+            ErrorKind::Build => "build",
+            ErrorKind::Header => "header",
+            ErrorKind::AuthScheme => "auth_scheme",
+            ErrorKind::MimeType => "mime_type",
         }
     }
 }
-
-impl fmt::Display for Kind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Kind::RequestBuild => f.write_str("failed to build request"),
-            Kind::HttpInvalidHeader => f.write_str("invalid HTTP header"),
-            Kind::AuthInvalidScheme => f.write_str("invalid authentication scheme"),
-            Kind::ContentTypeInvalid => f.write_str("invalid content type"),
-            Kind::ContentTypeUnsupported => f.write_str("unsupported content type"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ErrorCategory {
-    Request,
-    Http,
-    Authentication,
-    ContentType,
-}
-
-type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 impl Error {
-    pub fn new(kind: Kind) -> Self {
-        Self {
-            inner: Box::new(Inner {
-                kind,
-                message: None,
-                input: None,
-                source: None,
-            }),
+    pub fn kind(&self) -> ErrorKind {
+        match self.inner.kind {
+            Kind::Build => ErrorKind::Build,
+            Kind::HeaderValue { .. } => ErrorKind::Header,
+            Kind::AuthScheme { .. } => ErrorKind::AuthScheme,
+            Kind::MimeType(_) => ErrorKind::MimeType,
         }
     }
 
-    pub fn with_message(kind: Kind, message: impl Into<String>) -> Self {
+    fn new(kind: Kind, source: Option<BoxError>) -> Self {
         Self {
-            inner: Box::new(Inner {
-                kind,
-                message: Some(message.into()),
-                input: None,
-                source: None,
-            }),
+            inner: Box::new(Inner { kind, source }),
         }
-    }
-
-    pub fn with_source(kind: Kind, source: impl Into<BoxError>) -> Self {
-        Self {
-            inner: Box::new(Inner {
-                kind,
-                message: None,
-                input: None,
-                source: Some(source.into()),
-            }),
-        }
-    }
-
-    pub fn with_message_and_source(
-        kind: Kind,
-        message: impl Into<String>,
-        source: impl Into<BoxError>,
-    ) -> Self {
-        Self {
-            inner: Box::new(Inner {
-                kind,
-                message: Some(message.into()),
-                input: None,
-                source: Some(source.into()),
-            }),
-        }
-    }
-
-    pub fn with_input(mut self, input: impl Into<String>) -> Self {
-        self.inner.input = Some(input.into());
-        self
-    }
-
-    pub fn message(&self) -> Option<&str> {
-        self.inner.message.as_deref()
-    }
-
-    pub fn input(&self) -> Option<&str> {
-        self.inner.input.as_deref()
-    }
-
-    pub fn is_request(&self) -> bool {
-        matches!(self.inner.kind, Kind::RequestBuild)
     }
 }
 
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut builder = f.debug_struct("asknothingx2-util::api::Error");
+impl Debug for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let mut builder = f.debug_struct("asknothingx2_util::api::Error");
 
-        builder.field("kind", &self.inner.kind);
-
-        if let Some(ref message) = self.inner.message {
-            builder.field("message", message);
-        }
-
-        if let Some(ref input) = self.inner.input {
-            builder.field("input", input);
-        }
+        builder.field("kind", &self.kind());
+        builder.field("message", &self.to_string());
 
         if let Some(ref source) = self.inner.source {
             builder.field("source", source);
@@ -145,108 +83,157 @@ impl fmt::Debug for Error {
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref message) = self.inner.message {
-            write!(f, "{message}")?;
-        } else {
-            write!(f, "{}", self.inner.kind)?;
-        }
-
-        if let Some(ref input) = self.inner.input {
-            let truncated = truncate_input(input);
-            if !truncated.is_empty() {
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match &self.inner.kind {
+            Kind::Build => f.write_str("failed to build HTTP client"),
+            Kind::HeaderValue { name } => {
+                write!(f, "invalid value for HTTP header {:?}", name.as_str())
+            }
+            Kind::AuthScheme { scheme } => {
                 write!(
                     f,
-                    " [input: {}{}]",
-                    truncated,
-                    if input.len() > truncated.len() {
-                        "..."
-                    } else {
-                        ""
-                    }
-                )?;
+                    "invalid authorization header value for scheme {scheme:?}"
+                )
             }
+            Kind::MimeType(reason) => match reason {
+                MimeType::ToStr => f.write_str("failed to convert header value to a string"),
+                MimeType::TooLong => f.write_str("MIME type too long"),
+                MimeType::TooLongWithParams => f.write_str("MIME type with parameters too long"),
+                MimeType::Malformed { input } => {
+                    write!(f, "malformed MIME type {input:?}")
+                }
+                MimeType::Unsupported { input } => {
+                    write!(f, "unsupported MIME type {input:?}")
+                }
+            },
         }
-
-        if let Some(ref source) = self.inner.source {
-            write!(f, " -> {source})")?;
-        }
-
-        Ok(())
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self.inner.source.as_ref().map(|e| &**e as _)
     }
 }
 
-pub mod request {
-    use super::{BoxError, Error, Kind};
-
-    pub fn build<E: Into<BoxError>>(source: E) -> Error {
-        Error::with_source(Kind::RequestBuild, source)
-    }
+pub(crate) fn build(source: reqwest::Error) -> Error {
+    Error::new(Kind::Build, Some(source.into()))
 }
 
-pub mod http {
-    use super::{BoxError, Error, Kind};
-    pub fn invalid_header<E: Into<BoxError>>(source: E) -> Error {
-        Error::with_source(Kind::HttpInvalidHeader, source)
-    }
+pub(crate) fn invalid_header_value(name: &HeaderName, source: InvalidHeaderValue) -> Error {
+    Error::new(
+        Kind::HeaderValue { name: name.clone() },
+        Some(source.into()),
+    )
 }
 
-pub mod auth {
-    use super::{Error, Kind};
+pub(crate) fn invalid_auth_scheme(scheme: impl Into<String>, source: InvalidHeaderValue) -> Error {
+    Error::new(
+        Kind::AuthScheme {
+            scheme: scheme.into(),
+        },
+        Some(source.into()),
+    )
+}
 
-    pub fn invalid_scheme<S: Into<String>>(scheme: S) -> Error {
-        Error::with_message(
-            Kind::AuthInvalidScheme,
-            format!(
-                "invalid authorization header value for scheme '{}'",
-                scheme.into()
+pub(crate) fn mime_type_to_str(source: ToStrError) -> Error {
+    Error::new(Kind::MimeType(MimeType::ToStr), Some(source.into()))
+}
+
+pub(crate) fn mime_type_too_long() -> Error {
+    Error::new(Kind::MimeType(MimeType::TooLong), None)
+}
+
+pub(crate) fn mime_type_with_params_too_long() -> Error {
+    Error::new(Kind::MimeType(MimeType::TooLongWithParams), None)
+}
+
+pub(crate) fn mime_type_malformed(input: impl Into<String>) -> Error {
+    Error::new(
+        Kind::MimeType(MimeType::Malformed {
+            input: input.into(),
+        }),
+        None,
+    )
+}
+
+pub(crate) fn mime_type_unsupported(input: impl Into<String>) -> Error {
+    Error::new(
+        Kind::MimeType(MimeType::Unsupported {
+            input: input.into(),
+        }),
+        None,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use http::{
+        HeaderMap,
+        header::{AUTHORIZATION, COOKIE},
+    };
+
+    use crate::api::{AuthScheme, HeaderMut};
+
+    use super::*;
+
+    #[test]
+    fn send_sync_static() {
+        fn assert<T: Send + Sync + 'static>() {}
+        assert::<Error>();
+    }
+
+    #[test]
+    fn invalid_header_error_does_not_leak_credentials() {
+        let err = AuthScheme::custom("OAuth", "secret\n")
+            .to_header_value()
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "invalid authorization header value for scheme \"OAuth\""
+        );
+        assert!(!format!("{err:?}").contains("secret\n"));
+    }
+
+    #[test]
+    fn invalid_header_value_error_does_not_leak_value() {
+        let secret: &str = "s3cret";
+        let value = format!("{secret}\n");
+
+        let mut headers = HeaderMap::new();
+        let mut header = HeaderMut::new(&mut headers);
+
+        let cases = [
+            ("client-id", header.client_id(&value).err()),
+            ("client-secret", header.client_secret(&value).err()),
+            ("x-api-key", header.api_key(&value).err()),
+            (
+                "authorization",
+                header.header_str_sensitive(AUTHORIZATION, &value).err(),
             ),
-        )
-    }
-}
+            ("cookie", header.header_str(COOKIE, &value).err()),
+        ];
 
-pub mod content {
-    use super::{Error, Kind};
+        for (name, err) in cases {
+            let err = err.unwrap();
 
-    pub fn invalid_type<T: Into<String>>(content_type: T) -> Error {
-        Error::with_message(
-            Kind::ContentTypeInvalid,
-            format!("invalid content type '{}'", content_type.into()),
-        )
-    }
+            assert_eq!(err.kind(), ErrorKind::Header);
+            assert_eq!(
+                err.to_string(),
+                format!("invalid value for HTTP header {name:?}")
+            );
+            assert!(!format!("{err:?}").contains(secret));
 
-    pub fn unsupported<T: Into<String>>(content_type: T) -> Error {
-        Error::with_message(
-            Kind::ContentTypeUnsupported,
-            format!("unsupported content type '{}'", content_type.into()),
-        )
-    }
-}
+            let mut source = err.source();
+            while let Some(cause) = source {
+                assert!(!cause.to_string().contains(secret));
+                assert!(!format!("{cause:?}").contains(secret));
+                source = cause.source();
+            }
+        }
 
-fn truncate_input(input: &str) -> &str {
-    const MAX_LEN: usize = 80;
-    if input.len() <= MAX_LEN {
-        input
-    } else {
-        &input[..MAX_LEN]
-    }
-}
-
-impl From<InvalidHeaderName> for Error {
-    fn from(err: InvalidHeaderName) -> Self {
-        Error::with_source(Kind::HttpInvalidHeader, err)
-    }
-}
-
-impl From<InvalidHeaderValue> for Error {
-    fn from(err: InvalidHeaderValue) -> Self {
-        Error::with_source(Kind::HttpInvalidHeader, err)
+        assert!(headers.is_empty());
     }
 }

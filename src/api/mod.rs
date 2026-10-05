@@ -6,7 +6,7 @@ mod error;
 mod header_mut;
 
 pub use auth_scheme::{AuthScheme, DigestBuilder, SCRAMVariant};
-pub use error::{Error, Kind};
+pub use error::{Error, ErrorKind};
 pub use header_mut::HeaderMut;
 
 // Re-export

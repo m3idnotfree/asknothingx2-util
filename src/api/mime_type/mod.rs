@@ -314,41 +314,33 @@ impl<'a> ParsedMimeType<'a> {
             return Err(error::mime_type_with_params_too_long());
         }
 
-        if let Some(semicolon_pos) = input.find(';') {
-            let mime_type = input[..semicolon_pos].trim();
-            let parameters = input[semicolon_pos + 1..].trim();
+        let (mime_type, parameters) = match input.split_once(';') {
+            Some((mime_type, parameters)) => (mime_type.trim(), parameters.trim()),
+            None => (input, ""),
+        };
 
-            if !Self::is_valid_mime_type(mime_type) {
-                return Err(error::mime_type_malformed(mime_type));
-            }
+        Self::validate_mime_type(mime_type)?;
 
-            Ok(Self {
-                mime_type,
-                parameters,
-                raw: input,
-            })
+        Ok(Self {
+            mime_type,
+            parameters,
+            raw: input,
+        })
+    }
+
+    fn validate_mime_type(mime_type: &str) -> Result<(), Error> {
+        if mime_type.len() > 200 {
+            return Err(error::mime_type_too_long());
+        }
+
+        if Self::is_well_formed(mime_type) {
+            Ok(())
         } else {
-            if !Self::is_valid_mime_type(input) {
-                return Err(error::mime_type_malformed(input));
-            }
-
-            Ok(Self {
-                mime_type: input,
-                parameters: "",
-                raw: input,
-            })
+            Err(error::mime_type_malformed(mime_type))
         }
     }
 
-    fn is_valid_mime_type(mime_type: &str) -> bool {
-        if mime_type.is_empty() || mime_type.len() > 200 {
-            return false;
-        }
-
-        if !mime_type.is_ascii() {
-            return false;
-        }
-
+    fn is_well_formed(mime_type: &str) -> bool {
         let bytes = mime_type.as_bytes();
         let mut slash_pos = None;
 

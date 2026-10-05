@@ -283,17 +283,16 @@ impl<'a> HeaderMut<'a> {
 
 impl<'a> HeaderMut<'a> {
     /// Authorization: type credentials
-    pub fn authorization(&mut self, auth: AuthScheme) -> &mut Self {
-        self.header
-            .insert(AUTHORIZATION, auth.to_header_value().unwrap());
-        self
+    pub fn authorization(&mut self, auth: AuthScheme) -> Result<&mut Self, Error> {
+        self.header.insert(AUTHORIZATION, auth.to_header_value()?);
+        Ok(self)
     }
 
-    pub fn basic_auth(&mut self, username: &str, password: &str) -> &mut Self {
+    pub fn basic_auth(&mut self, username: &str, password: &str) -> Result<&mut Self, Error> {
         self.authorization(AuthScheme::basic(username, password))
     }
 
-    pub fn bearer_token(&mut self, token: &str) -> &mut Self {
+    pub fn bearer_token(&mut self, token: &str) -> Result<&mut Self, Error> {
         self.authorization(AuthScheme::bearer(token))
     }
 }

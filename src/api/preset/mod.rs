@@ -382,8 +382,8 @@ pub fn rest_api(user_agent: &str) -> Preset {
 /// - TLS: 1.2+ minimum, strict validation
 /// - HTTPS: Enforced (HTTP blocked)
 /// - HTTP/2: Required (no HTTP/1.1 fallback)
-/// - Redirects: Up to 5 allowed
-/// - Cookies: Not saved, Referer: Sent
+/// - Redirects: Disabled
+/// - Cookies: Not saved, Referer: Not sent
 /// - Headers: Accept JSON, no-cache control
 pub fn authentication(user_agent: &str) -> Preset {
     let mut preset = Preset::default();
@@ -391,6 +391,7 @@ pub fn authentication(user_agent: &str) -> Preset {
         .timeouts(Duration::from_secs(60), Duration::from_secs(10))
         .connections(30, Duration::from_secs(90))
         .http2(true, Some(Http2Settings::default()))
+        .security(SecurityProfile::strict_1_2().redirect(Policy::none()))
         .user_agent(user_agent);
 
     preset

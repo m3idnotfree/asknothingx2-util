@@ -3,7 +3,8 @@ use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
 };
 
-use http::header::{HeaderName, InvalidHeaderValue, ToStrError};
+// use http::header::ToStrError;
+use http::header::{HeaderName, InvalidHeaderValue};
 
 pub struct Error {
     inner: Box<Inner>,
@@ -20,16 +21,16 @@ enum Kind {
     Build,
     HeaderValue { name: HeaderName },
     AuthScheme { scheme: String },
-    MimeType(MimeType),
+    // MimeType(MimeType),
 }
 
-enum MimeType {
-    ToStr,
-    TooLong,
-    TooLongWithParams,
-    Malformed { input: String },
-    Unsupported { input: String },
-}
+// enum MimeType {
+//     ToStr,
+//     TooLong,
+//     TooLongWithParams,
+//     Malformed { input: String },
+//     Unsupported { input: String },
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -37,7 +38,7 @@ pub enum ErrorKind {
     Build,
     Header,
     AuthScheme,
-    MimeType,
+    // MimeType,
 }
 
 impl ErrorKind {
@@ -46,7 +47,7 @@ impl ErrorKind {
             ErrorKind::Build => "build",
             ErrorKind::Header => "header",
             ErrorKind::AuthScheme => "auth_scheme",
-            ErrorKind::MimeType => "mime_type",
+            // ErrorKind::MimeType => "mime_type",
         }
     }
 }
@@ -57,7 +58,7 @@ impl Error {
             Kind::Build => ErrorKind::Build,
             Kind::HeaderValue { .. } => ErrorKind::Header,
             Kind::AuthScheme { .. } => ErrorKind::AuthScheme,
-            Kind::MimeType(_) => ErrorKind::MimeType,
+            // Kind::MimeType(_) => ErrorKind::MimeType,
         }
     }
 
@@ -95,18 +96,17 @@ impl Display for Error {
                     f,
                     "invalid authorization header value for scheme {scheme:?}"
                 )
-            }
-            Kind::MimeType(reason) => match reason {
-                MimeType::ToStr => f.write_str("failed to convert header value to a string"),
-                MimeType::TooLong => f.write_str("MIME type too long"),
-                MimeType::TooLongWithParams => f.write_str("MIME type with parameters too long"),
-                MimeType::Malformed { input } => {
-                    write!(f, "malformed MIME type {input:?}")
-                }
-                MimeType::Unsupported { input } => {
-                    write!(f, "unsupported MIME type {input:?}")
-                }
-            },
+            } // Kind::MimeType(reason) => match reason {
+              //     MimeType::ToStr => f.write_str("failed to convert header value to a string"),
+              //     MimeType::TooLong => f.write_str("MIME type too long"),
+              //     MimeType::TooLongWithParams => f.write_str("MIME type with parameters too long"),
+              //     MimeType::Malformed { input } => {
+              //         write!(f, "malformed MIME type {input:?}")
+              //     }
+              //     MimeType::Unsupported { input } => {
+              //         write!(f, "unsupported MIME type {input:?}")
+              //     }
+              // },
         }
     }
 }
@@ -137,35 +137,35 @@ pub(crate) fn invalid_auth_scheme(scheme: impl Into<String>, source: InvalidHead
     )
 }
 
-pub(crate) fn mime_type_to_str(source: ToStrError) -> Error {
-    Error::new(Kind::MimeType(MimeType::ToStr), Some(source.into()))
-}
-
-pub(crate) fn mime_type_too_long() -> Error {
-    Error::new(Kind::MimeType(MimeType::TooLong), None)
-}
-
-pub(crate) fn mime_type_with_params_too_long() -> Error {
-    Error::new(Kind::MimeType(MimeType::TooLongWithParams), None)
-}
-
-pub(crate) fn mime_type_malformed(input: impl Into<String>) -> Error {
-    Error::new(
-        Kind::MimeType(MimeType::Malformed {
-            input: input.into(),
-        }),
-        None,
-    )
-}
-
-pub(crate) fn mime_type_unsupported(input: impl Into<String>) -> Error {
-    Error::new(
-        Kind::MimeType(MimeType::Unsupported {
-            input: input.into(),
-        }),
-        None,
-    )
-}
+// pub(crate) fn mime_type_to_str(source: ToStrError) -> Error {
+//     Error::new(Kind::MimeType(MimeType::ToStr), Some(source.into()))
+// }
+//
+// pub(crate) fn mime_type_too_long() -> Error {
+//     Error::new(Kind::MimeType(MimeType::TooLong), None)
+// }
+//
+// pub(crate) fn mime_type_with_params_too_long() -> Error {
+//     Error::new(Kind::MimeType(MimeType::TooLongWithParams), None)
+// }
+//
+// pub(crate) fn mime_type_malformed(input: impl Into<String>) -> Error {
+//     Error::new(
+//         Kind::MimeType(MimeType::Malformed {
+//             input: input.into(),
+//         }),
+//         None,
+//     )
+// }
+//
+// pub(crate) fn mime_type_unsupported(input: impl Into<String>) -> Error {
+//     Error::new(
+//         Kind::MimeType(MimeType::Unsupported {
+//             input: input.into(),
+//         }),
+//         None,
+//     )
+// }
 
 #[cfg(test)]
 mod tests {

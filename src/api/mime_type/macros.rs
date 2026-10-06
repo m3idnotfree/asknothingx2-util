@@ -1,24 +1,18 @@
-macro_rules! case_insensitive_match {
-    ($input:expr, { $($pattern:expr => $result:expr),* $(,)? }) => {
-        case_insensitive_match!(@in $input, {$($pattern => $result),* })
-    };
-
-    (@in $input:expr, { $pattern:expr => $result:expr $(, $rest_pattern:expr => $rest_result:expr)* $(,)?}) => {
-        if $input.eq_ignore_ascii_case($pattern) {
-            return Ok($result);
-        }
-
-        $(
-            else if $input.eq_ignore_ascii_case($rest_pattern) {
-                Ok($rest_result)
-            }
-        )*
-
-        else {
-            Err(crate::api::error::mime_type_unsupported($input))
-        }
-    };
-}
+// macro_rules! case_insensitive_match {
+//     ($input:expr, { $($pattern:expr => $result:expr),* $(,)? }) => {{
+//         let input: &str = $input;
+//
+//         $(
+//             if input.eq_ignore_ascii_case($pattern) {
+//                 return Ok($result);
+//             } else
+//
+//         )*
+//         {
+//             Err(crate::api::error::mime_type_unsupported(input))
+//         }
+//     }};
+// }
 
 macro_rules! define_mime_type {
     (
@@ -26,7 +20,6 @@ macro_rules! define_mime_type {
         pub enum $enum_name:ident {
             $(
                 $variant:ident => {
-                    const: $const_name:ident,
                     mime: $mime_type:literal,
                     extensions: [$($ext:literal),*]
                     $(, aliases: [$($alias:literal),* $(,)?])?
@@ -36,56 +29,43 @@ macro_rules! define_mime_type {
             $(,)?
         }
     ) => {
-        use std::str::FromStr;
+        // use std::str::FromStr;
 
         // use $crate::api::{mime_type::MimeType};
-        use $crate::api::{error, Error};
-        use http::HeaderValue;
+        // use $crate::api::{error, Error};
+        use ::http::HeaderValue;
 
         $(#[$enum_meta])*
+        #[non_exhaustive]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum $enum_name {
             $($variant,)*
         }
 
         impl $enum_name {
-            $(
-                const $const_name: &'static str = $mime_type;
-            )*
-
             #[inline]
-            pub const fn as_static(&self) -> &'static str {
+            pub const fn as_str(&self) -> &'static str {
                 match self {
                     $(
-                        Self::$variant => Self::$const_name,
+                        Self::$variant => $mime_type,
                     )*
                 }
             }
 
             #[inline]
-            pub const fn as_str(&self) -> &str {
-                self.as_static()
-            }
-
-            #[inline]
-            pub fn as_header_value(&self) -> HeaderValue {
-                HeaderValue::from_static(self.as_static())
-            }
-
-            #[inline]
             pub fn to_header_value(self) -> HeaderValue {
-                HeaderValue::from_static(self.as_static())
+                HeaderValue::from_static(self.as_str())
             }
 
-            pub fn from_header_value(value: &HeaderValue) -> Result<Self, Error> {
-                let content_type = value.to_str()
-                    .map_err(error::mime_type_to_str)?;
-
-                Self::from_str(content_type)
-            }
+            // pub fn from_header_value(value: &HeaderValue) -> Result<Self, Error> {
+            //     let content_type = value.to_str()
+            //         .map_err(error::mime_type_to_str)?;
+            //
+            //     Self::from_str(content_type)
+            // }
 
             #[inline]
-            pub const fn extensions(&self) -> &[&str] {
+            pub const fn extensions(&self) -> &'static [&'static str] {
                 match self {
                     $(
                         Self::$variant => &[$($ext,)*],
@@ -94,40 +74,40 @@ macro_rules! define_mime_type {
             }
 
             #[inline]
-            pub const fn primary_extension(&self) -> Option<&str> {
+            pub const fn primary_extension(&self) -> Option<&'static str> {
                 self.extensions().first().copied()
             }
         }
 
         impl std::fmt::Display for $enum_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.as_str())
+                f.write_str(self.as_str())
             }
         }
 
-        impl TryFrom<&str> for $enum_name {
-            type Error = Error;
+        // impl TryFrom<&str> for $enum_name {
+        //     type Error = Error;
+        //
+        //     fn try_from(value: &str) -> Result<Self, Self::Error> {
+        //         value.parse()
+        //     }
+        // }
 
-            fn try_from(value: &str) -> Result<Self, Self::Error> {
-                value.parse()
-            }
-        }
+        // impl TryFrom<String> for $enum_name {
+        //     type Error = Error;
+        //
+        //     fn try_from(value: String) -> Result<Self, Self::Error> {
+        //         value.parse()
+        //     }
+        // }
 
-        impl TryFrom<String> for $enum_name {
-            type Error = Error;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                value.parse()
-            }
-        }
-
-        impl TryFrom<&HeaderValue> for $enum_name {
-            type Error = Error;
-
-            fn try_from(value: &HeaderValue) -> Result<Self, Self::Error> {
-                Self::from_header_value(value)
-            }
-        }
+        // impl TryFrom<&HeaderValue> for $enum_name {
+        //     type Error = Error;
+        //
+        //     fn try_from(value: &HeaderValue) -> Result<Self, Self::Error> {
+        //         Self::from_header_value(value)
+        //     }
+        // }
 
         impl From<$enum_name> for String {
             fn from(value: $enum_name) -> Self {
@@ -137,7 +117,7 @@ macro_rules! define_mime_type {
 
         impl From<$enum_name> for &'static str {
             fn from(value: $enum_name) -> Self {
-                value.as_static()
+                value.as_str()
             }
         }
 
@@ -189,36 +169,36 @@ macro_rules! define_mime_type {
             }
         }
 
-        impl FromStr for $enum_name {
-            type Err = Error;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                let mime_type = s.split(';').next().unwrap_or(s).trim();
-
-                if mime_type.len() > 200 {
-                    return Err(error::mime_type_too_long());
-                }
-
-                // Validate basic MIME type format
-                if !mime_type.contains('/') {
-                    return Err(error::mime_type_malformed(mime_type));
-                }
-
-                case_insensitive_match!(mime_type, {
-                    $(
-                        $mime_type => Self::$variant,
-                    )*
-
-                    $(
-                        $(
-                            $(
-                                $alias => Self::$variant,
-                            )*
-                        )?
-                    )*
-                })
-            }
-        }
+        // impl FromStr for $enum_name {
+        //     type Err = Error;
+        //
+        //     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        //         let mime_type = s.split(';').next().unwrap_or(s).trim();
+        //
+        //         if mime_type.len() > 200 {
+        //             return Err(error::mime_type_too_long());
+        //         }
+        //
+        //         // Validate basic MIME type format
+        //         if !mime_type.contains('/') {
+        //             return Err(error::mime_type_malformed(mime_type));
+        //         }
+        //
+        //         case_insensitive_match!(mime_type, {
+        //             $(
+        //                 $mime_type => Self::$variant,
+        //             )*
+        //
+        //             $(
+        //                 $(
+        //                     $(
+        //                         $alias => Self::$variant,
+        //                     )*
+        //                 )?
+        //             )*
+        //         })
+        //     }
+        // }
 
         #[cfg(test)]
         use proptest::strategy::Strategy;
@@ -243,35 +223,35 @@ macro_rules! define_mime_type {
         mod tests {
             use super::*;
 
-            #[test]
-            fn mime_type() {
-                $(
-                    assert_eq!(
-                        $enum_name::from_str($mime_type).unwrap(),
-                        $enum_name::$variant
-                    );
-
-                    assert_eq!(
-                        $enum_name::from_str(&$mime_type.to_uppercase()).unwrap(),
-                        $enum_name::$variant
-                    );
-
-                    let with_params = format!("{}; charset=utf-8", $mime_type);
-                    assert_eq!(
-                        $enum_name::from_str(&with_params).unwrap(),
-                        $enum_name::$variant
-                    );
-
-                    $(
-                        $(
-                            assert_eq!(
-                                $enum_name::from_str($alias).unwrap(),
-                                $enum_name::$variant
-                            );
-                        )*
-                    )?
-                )*
-            }
+            // #[test]
+            // fn mime_type() {
+            //     $(
+            //         assert_eq!(
+            //             $enum_name::from_str($mime_type).unwrap(),
+            //             $enum_name::$variant
+            //         );
+            //
+            //         assert_eq!(
+            //             $enum_name::from_str(&$mime_type.to_uppercase()).unwrap(),
+            //             $enum_name::$variant
+            //         );
+            //
+            //         let with_params = format!("{}; charset=utf-8", $mime_type);
+            //         assert_eq!(
+            //             $enum_name::from_str(&with_params).unwrap(),
+            //             $enum_name::$variant
+            //         );
+            //
+            //         $(
+            //             $(
+            //                 assert_eq!(
+            //                     $enum_name::from_str($alias).unwrap(),
+            //                     $enum_name::$variant
+            //                 );
+            //             )*
+            //         )?
+            //     )*
+            // }
 
             #[test]
             fn header_value_conversion() {
@@ -317,12 +297,12 @@ macro_rules! define_mime_type {
                 )*
             }
 
-            #[test]
-            fn invalid_mime_types() {
-                assert!($enum_name::from_str("").is_err());
-                assert!($enum_name::from_str("invalid").is_err());
-                assert!($enum_name::from_str("invalid/unknown").is_err());
-            }
+            // #[test]
+            // fn invalid_mime_types() {
+            //     assert!($enum_name::from_str("").is_err());
+            //     assert!($enum_name::from_str("invalid").is_err());
+            //     assert!($enum_name::from_str("invalid/unknown").is_err());
+            // }
 
             #[test]
             fn primary_extensions() {

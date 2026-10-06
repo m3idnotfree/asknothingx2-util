@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use asknothingx2_util::oauth::oneshot::{self, Config};
+use asknothingx2_util::oauth::oneshot::{self, Config, Error};
 use serde::Deserialize;
 use tokio::time;
 
@@ -44,9 +44,7 @@ async fn timeout() {
     let config = Config::new().with_duration(Duration::from_secs(1));
 
     let result = oneshot::listen::<Callback>(config).await;
-
-    assert!(result.is_err());
-    assert!(result.unwrap_err().is_timeout());
+    assert!(matches!(result, Err(Error::Timeout)));
 }
 
 #[tokio::test]
@@ -66,12 +64,11 @@ async fn invalid_query() {
     assert_eq!(400, resp.status());
 
     let result = server_handle.await.unwrap();
-    assert!(result.is_err());
 
-    let error = result.unwrap_err();
-    assert!(error.is_invalid_query());
+    let Err(Error::InvalidQuery { query, .. }) = result else {
+        panic!("expected Error::InvalidQuery");
+    };
 
-    let query = error.query().unwrap();
     assert_eq!("code=test_code", query);
 }
 
@@ -95,12 +92,11 @@ async fn unexpected_method() {
     assert_eq!(405, resp.status());
 
     let result = server_handle.await.unwrap();
-    assert!(result.is_err());
 
-    let error = result.unwrap_err();
-    assert!(error.is_unexpected_method());
+    let Err(Error::UnexpectedMethod { method }) = result else {
+        panic!("expected Error::UnexpectedMethod");
+    };
 
-    let method = error.method().unwrap();
     assert_eq!("POST", method);
 }
 
@@ -122,12 +118,11 @@ async fn unexpected_path() {
     assert_eq!(404, resp.status());
 
     let result = server_handle.await.unwrap();
-    assert!(result.is_err());
 
-    let error = result.unwrap_err();
-    assert!(error.is_unexpected_path());
+    let Err(Error::UnexpectedPath { expected, actual }) = result else {
+        panic!("expected Error::UnexpectedPath");
+    };
 
-    let (expected, actual) = error.path().unwrap();
     assert_eq!("/callback", expected);
     assert_eq!("/wrong", actual);
 }

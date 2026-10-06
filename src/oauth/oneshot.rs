@@ -6,7 +6,7 @@
 //! ```no_run
 //! use std::time::Duration;
 //!
-//! use asknothingx2_util::oauth::oneshot::{self, Config, ServerError};
+//! use asknothingx2_util::oauth::oneshot::{self, Config, Error};
 //! use serde::Deserialize;
 //!
 //! #[derive(Deserialize)]
@@ -15,7 +15,7 @@
 //!     pub state: String,
 //! }
 //!
-//! async fn callback() -> Result<Callback, ServerError> {
+//! async fn callback() -> Result<Callback, Error> {
 //!     let config = Config::new()
 //!         .with_port(8080)
 //!         .with_callback_path("/auth/callback")
@@ -27,23 +27,18 @@
 //!
 //! # Error Handling
 //! ```
-//! # use asknothingx2_util::oauth::oneshot::{self, Config};
+//! # use asknothingx2_util::oauth::oneshot::{self, Config, Error};
 //! # async fn run(config:Config) {
 //! match oneshot::listen(config).await {
-//!     Ok(callback) => { callback }
-//!     Err(e) => {
-//!         if e.is_timeout() {
-//!             eprintln!("Timeout");
-//!         } else if e.is_invalid_query() {
-//!             eprintln!("Query: {}", e.query().unwrap());
-//!         } else if e.is_unexpected_path() {
-//!             let (expected, actual) = e.path().unwrap();
-//!             eprintln!("Expected: {}", expected);
-//!             eprintln!("Received: {}", actual);
-//!         } else if e.is_shutdown() {
-//!             eprintln!("Shutdown");
-//!         }
+//!     Ok(callback) => { callback },
+//!     Err(Error::Timeout) => eprintln!("Timeout"),
+//!     Err(Error::InvalidQuery { query, .. }) => eprintln!("Query: {query:?}"),
+//!     Err(Error::UnexpectedMethod { method }) => eprintln!("Method: {method:?}"),
+//!     Err(Error::UnexpectedPath { expected, actual }) => {
+//!         eprintln!("Expected: {expected:?}");
+//!         eprintln!("Received: {actual:?}");
 //!     }
+//!     Err(e) => eprintln!("{e}"),
 //! }
 //! # }
 //! ```
@@ -108,7 +103,7 @@ impl Config {
         self
     }
 
-    /// The server will return [`ServerError::Timeout`] if no callback is received
+    /// The server will return [`Error::Timeout`] if no callback is received
     /// within this duration.
     pub fn with_duration(mut self, duration: Duration) -> Self {
         self.duration = duration;
@@ -135,16 +130,16 @@ impl Config {
 ///
 /// The server shuts down immediately when:
 /// - O - A valid callback is received (returns `Ok(T)`)
-/// - X - Query parsing fails (returns Err([ServerError::InvalidQuery]))
-/// - X - Wrong HTTP method is used (returns Err([ServerError::UnexpectedMethod]))
-/// - X - Wrong path is requested (returns Err([ServerError::UnexpectedPath]))
-/// - X - Timeout is reached (returns Err([ServerError::Timeout]))
-/// - X - Ctrl+C is pressed (returns Err([ServerError::Shutdown]))
-pub async fn listen<T>(config: Config) -> Result<T, ServerError>
+/// - X - Query parsing fails (returns Err([Error::InvalidQuery]))
+/// - X - Wrong HTTP method is used (returns Err([Error::UnexpectedMethod]))
+/// - X - Wrong path is requested (returns Err([Error::UnexpectedPath]))
+/// - X - Timeout is reached (returns Err([Error::Timeout]))
+/// - X - Ctrl+C is pressed (returns Err([Error::Shutdown]))
+pub async fn listen<T>(config: Config) -> Result<T, Error>
 where
     T: DeserializeOwned + Send + 'static,
 {
-    let (tx, rx) = oneshot::channel::<Result<T, ServerError>>();
+    let (tx, rx) = oneshot::channel::<Result<T, Error>>();
 
     let state = Arc::new(AppState {
         tx: Arc::new(Mutex::new(Some(tx))),
@@ -157,12 +152,12 @@ where
 
     let listener = TcpListener::bind(&addr)
         .await
-        .map_err(|e| ServerError::BindFailed {
+        .map_err(|e| Error::BindFailed {
             addr: addr.to_string(),
             source: e,
         })?;
 
-    let server_handle: JoinHandle<Result<(), ServerError>> = tokio::spawn(async move {
+    let server_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
         loop {
             let (stream, remote_addr) = listener.accept().await?;
             debug!("Accepted connection from {}", remote_addr);
@@ -187,24 +182,24 @@ where
             match result {
                 Ok(Ok(callback)) => Ok(callback),
                 Ok(Err(e)) => Err(e),
-                Err(_) => Err(ServerError::Shutdown),
+                Err(_) => Err(Error::Shutdown),
             }
         }
         _ = sleep(config.duration) => {
             debug!("OAuth callback server timed out");
             server_handle.abort();
-            Err(ServerError::Timeout)
+            Err(Error::Timeout)
         }
         _ = tokio::signal::ctrl_c() => {
             debug!("OAuth callback server received shutdown signal");
             server_handle.abort();
-            Err(ServerError::Shutdown)
+            Err(Error::Shutdown)
         }
     }
 }
 struct AppState<T> {
     #[allow(clippy::type_complexity)]
-    tx: Arc<Mutex<Option<oneshot::Sender<Result<T, ServerError>>>>>,
+    tx: Arc<Mutex<Option<oneshot::Sender<Result<T, Error>>>>>,
     path: String,
     message: String,
 }
@@ -231,7 +226,7 @@ where
         debug!("Unexpected HTTP method: expected GET, got {}", method);
 
         if let Some(sender) = state.tx.lock().unwrap().take() {
-            let _ = sender.send(Err(ServerError::UnexpectedMethod {
+            let _ = sender.send(Err(Error::UnexpectedMethod {
                 method: method.clone(),
             }));
         }
@@ -246,7 +241,7 @@ where
         debug!("Unexpected path: expected '{}', got '{}'", state.path, path);
 
         if let Some(sender) = state.tx.lock().unwrap().take() {
-            let _ = sender.send(Err(ServerError::UnexpectedPath {
+            let _ = sender.send(Err(Error::UnexpectedPath {
                 expected: state.path.to_string(),
                 actual: path.to_string(),
             }));
@@ -265,7 +260,7 @@ where
             debug!("Failed to parse OAuth callback query `{}`: {}", query, e);
 
             if let Some(sender) = state.tx.lock().unwrap().take() {
-                let _ = sender.send(Err(ServerError::InvalidQuery {
+                let _ = sender.send(Err(Error::InvalidQuery {
                     query: query.to_string(),
                     source: e,
                 }));
@@ -301,77 +296,27 @@ fn error_response(status: StatusCode, message: &str) -> Response<Full<Bytes>> {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ServerError {
-    #[error("failed to bind to address `{addr}`: {source}")]
-    BindFailed { addr: String, source: IoError },
+pub enum Error {
+    #[error("failed to bind to address {:?}", addr)]
+    BindFailed {
+        addr: String,
+        #[source]
+        source: IoError,
+    },
     #[error(transparent)]
     Io(#[from] IoError),
-    #[error("invalid OAuth callback query `{query}`: {source}")]
+    #[error("invalid OAuth callback query")]
     InvalidQuery {
         query: String,
         #[source]
         source: serde_urlencoded::de::Error,
     },
-    #[error("unexpected HTTP method: expected `GET`, got {method}")]
+    #[error("unexpected HTTP method {:?}", method)]
     UnexpectedMethod { method: Method },
-    #[error("unexpected path: expected `{expected}`, got `{actual}`")]
+    #[error("unexpected callback path {:?}", actual)]
     UnexpectedPath { expected: String, actual: String },
-    #[error("server received shutdown signal")]
+    #[error("shutdown signal received")]
     Shutdown,
-    #[error("timeout waiting for OAuth authorization callback")]
+    #[error("timeout waiting for OAuth callback")]
     Timeout,
-}
-
-impl ServerError {
-    pub fn is_timeout(&self) -> bool {
-        matches!(self, Self::Timeout)
-    }
-
-    pub fn is_invalid_query(&self) -> bool {
-        matches!(self, Self::InvalidQuery { .. })
-    }
-
-    pub fn is_unexpected_method(&self) -> bool {
-        matches!(self, Self::UnexpectedMethod { .. })
-    }
-
-    pub fn is_unexpected_path(&self) -> bool {
-        matches!(self, Self::UnexpectedPath { .. })
-    }
-
-    pub fn is_shutdown(&self) -> bool {
-        matches!(self, Self::Shutdown)
-    }
-
-    pub fn is_bind_failed(&self) -> bool {
-        matches!(self, Self::BindFailed { .. })
-    }
-
-    pub fn is_io(&self) -> bool {
-        matches!(self, Self::Io(_))
-    }
-
-    /// Returns the query string if this is an [`InvalidQuery`](ServerError::InvalidQuery) error.
-    pub fn query(&self) -> Option<&str> {
-        match self {
-            Self::InvalidQuery { query, source: _ } => Some(query),
-            _ => None,
-        }
-    }
-
-    /// Returns the HTTP method if this is an [`UnexpectedMethod`](ServerError::UnexpectedMethod) error.
-    pub fn method(&self) -> Option<&Method> {
-        match self {
-            Self::UnexpectedMethod { method } => Some(method),
-            _ => None,
-        }
-    }
-
-    /// Returns a tuple of `(expected, actual)` paths if this is an [`UnexpectedPath`](ServerError::UnexpectedPath) error.
-    pub fn path(&self) -> Option<(&str, &str)> {
-        match self {
-            Self::UnexpectedPath { expected, actual } => Some((expected, actual)),
-            _ => None,
-        }
-    }
 }

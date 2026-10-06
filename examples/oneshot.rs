@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use asknothingx2_util::oauth::oneshot::{self, Config};
+use asknothingx2_util::oauth::oneshot::{self, Config, Error};
 use serde::Deserialize;
 
 #[tokio::main]
@@ -19,22 +19,14 @@ async fn main() {
             println!("Code: {}", callback.code);
             println!("State: {}", callback.state);
         }
-        Err(e) if e.is_timeout() => {
-            eprintln!("Timeout")
+        Err(Error::Timeout) => eprintln!("Timeout"),
+        Err(Error::InvalidQuery { query, .. }) => eprintln!("Query: {query:?}"),
+        Err(Error::UnexpectedMethod { method }) => eprintln!("Method: {method:?}"),
+        Err(Error::UnexpectedPath { expected, actual }) => {
+            eprintln!("Expected: {expected:?}");
+            eprintln!("Received: {actual:?}");
         }
-        Err(e) if e.is_invalid_query() => {
-            eprintln!("Query: {}", e.query().unwrap());
-        }
-        Err(e) if e.is_unexpected_method() => {
-            eprintln!("Method: {}", e.method().unwrap());
-        }
-        Err(e) if e.is_unexpected_path() => {
-            let (expected, actual) = e.path().unwrap();
-            eprintln!("Expected: {}", expected);
-            eprintln!("Received: {}", actual);
-        }
-        Err(e) if e.is_shutdown() => {}
-        Err(_e) => {}
+        Err(e) => eprintln!("{e}"),
     }
 }
 

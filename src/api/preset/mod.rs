@@ -26,8 +26,8 @@ mod user_agents {
 /// - Request timeout: 30s, Connect timeout: 10s
 /// - Connections: 20 max per host, 90s idle timeout
 /// - TLS: 1.2+ minimum, strict validation, HTTPS-only
-/// - Redirects: Up to 5 allowed
-/// - Cookies: Not saved, Referer: Sent
+/// - Redirects: Up to 3 allowed
+/// - Cookies: Not saved, Referer: Not sent
 /// - Compression: gzip enabled, brotli disabled
 #[doc = concat!("- User-Agent: ",
   env!("CARGO_PKG_NAME"), "/",
@@ -121,9 +121,9 @@ impl Default for Preset {
 
             https_only: true,
 
-            redirect: Policy::limited(5),
+            redirect: Policy::limited(3),
             save_cookies: false,
-            send_referer: true,
+            send_referer: false,
 
             gzip: true,
             brotli: false,
@@ -341,8 +341,8 @@ impl Preset {
 /// - TLS: 1.2+ minimum, strict validation
 /// - HTTPS: Enforced (HTTP blocked)
 /// - HTTP/2: Auto-negotiated (supports both HTTP/1.1 and HTTP/2)
-/// - Redirects: Up to 5 allowed
-/// - Cookies: Not saved, Referer: Sent
+/// - Redirects: Up to 3 allowed
+/// - Cookies: Not saved, Referer: Not sent
 /// - Compression: gzip enabled, brotli disabled
 pub fn default(user_agent: &str) -> Preset {
     let mut preset = Preset::default();
@@ -359,7 +359,7 @@ pub fn default(user_agent: &str) -> Preset {
 /// - TLS: 1.2+ minimum, strict validation
 /// - HTTPS: Enforced (HTTP blocked)
 /// - HTTP/2: Auto-negotiated (supports both HTTP/1.1 and HTTP/2)
-/// - Redirects: Up to 5 allowed
+/// - Redirects: Up to 3 allowed
 /// - Cookies: Not saved, Referer: Not sent
 /// - Compression: gzip + brotli enabled
 /// - Headers: Accept JSON, standard encoding

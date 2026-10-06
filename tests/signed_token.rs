@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use asknothingx2_util::oauth::signed_token::{
-    TokenConfig, TokenError, current_timestamp, extract_datetime, extract_timestamp, generate,
+    Error, TokenConfig, current_timestamp, extract_datetime, extract_timestamp, generate,
     generate_secret_key, is_expired, token_age, verify, verify_with_config,
 };
 use chrono::Utc;
@@ -86,7 +86,7 @@ fn verify_token_with_errors() {
             Some("invalid"),
             &TokenConfig::default()
         ),
-        Err(TokenError::InvalidSignature)
+        Err(Error::InvalidSignature)
     );
 
     assert_eq!(
@@ -96,7 +96,7 @@ fn verify_token_with_errors() {
             Some("user123"),
             &TokenConfig::new(0, 0)
         ),
-        Err(TokenError::Expired)
+        Err(Error::Expired)
     );
 
     assert_eq!(
@@ -106,7 +106,7 @@ fn verify_token_with_errors() {
             Some("user123"),
             &TokenConfig::default()
         ),
-        Err(TokenError::InvalidFormat)
+        Err(Error::InvalidFormat)
     );
 }
 
@@ -135,7 +135,7 @@ fn test_is_expired() {
 
     assert_eq!(is_expired(&token, 3600), Ok(false));
     assert_eq!(is_expired(&token, 0), Ok(true));
-    assert_eq!(is_expired("invalid", 3600), Err(TokenError::InvalidFormat));
+    assert_eq!(is_expired("invalid", 3600), Err(Error::InvalidFormat));
 }
 
 #[test]

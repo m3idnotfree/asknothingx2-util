@@ -141,7 +141,7 @@ pub fn verify(
     token: &str,
     context: Option<&str>,
     max_age_seconds: u64,
-) -> Result<(), TokenError> {
+) -> Result<(), Error> {
     verify_with_config(
         secret_key,
         token,
@@ -157,7 +157,7 @@ pub fn verify_with_config(
     token: &str,
     context: Option<&str>,
     config: &TokenConfig,
-) -> Result<(), TokenError> {
+) -> Result<(), Error> {
     verify_at_time(secret_key, token, context, current_timestamp(), config)
 }
 
@@ -168,23 +168,31 @@ pub fn verify_at_time(
     context: Option<&str>,
     validation_time: i64,
     config: &TokenConfig,
-) -> Result<(), TokenError> {
+) -> Result<(), Error> {
     let decoded = URL_SAFE_NO_PAD
         .decode(token)
-        .map_err(|_| TokenError::InvalidFormat)?;
+        .map_err(|_| Error::InvalidFormat)?;
 
-    let decoded_str = String::from_utf8(decoded).map_err(|_| TokenError::InvalidFormat)?;
+    let decoded_str = String::from_utf8(decoded).map_err(|_| Error::InvalidFormat)?;
 
     let mut parts = decoded_str.splitn(2, ':');
-    let timestamp_str = parts.next().ok_or(TokenError::InvalidFormat)?;
-    let signature_str = parts.next().ok_or(TokenError::InvalidFormat)?;
+    let timestamp_str = parts.next().ok_or(Error::InvalidFormat)?;
+    let signature_str = parts.next().ok_or(Error::InvalidFormat)?;
 
-    let timestamp: i64 = timestamp_str
-        .parse()
-        .map_err(|_| TokenError::InvalidFormat)?;
+    let timestamp: i64 = timestamp_str.parse().map_err(|_| Error::InvalidFormat)?;
+    let provided_signature = hex::decode(signature_str).map_err(|_| Error::InvalidFormat)?;
+
+    let context_str = context.unwrap_or("");
+    let payload = format!("{timestamp_str}:{context_str}");
+
+    let mut mac = HmacSha256::new_from_slice(secret_key).expect("HMAC can accept keys of any size");
+    mac.update(payload.as_bytes());
+
+    mac.verify_slice(&provided_signature)
+        .map_err(|_| Error::InvalidSignature)?;
 
     if timestamp < 0 {
-        return Err(TokenError::InvalidTimestamp);
+        return Err(Error::InvalidTimestamp);
     }
 
     let age = validation_time - timestamp;
@@ -194,42 +202,33 @@ pub fn verify_at_time(
     let min_age = -tolerance;
 
     if age >= effective_max_age {
-        return Err(TokenError::Expired);
+        return Err(Error::Expired);
     }
     if age < min_age {
-        return Err(TokenError::InvalidTimestamp);
+        return Err(Error::InvalidTimestamp);
     }
 
-    let provided_signature = hex::decode(signature_str).map_err(|_| TokenError::InvalidFormat)?;
-
-    let context_str = context.unwrap_or("");
-    let payload = format!("{timestamp}:{context_str}");
-
-    let mut mac = HmacSha256::new_from_slice(secret_key).expect("HMAC can accept keys of any size");
-    mac.update(payload.as_bytes());
-
-    mac.verify_slice(&provided_signature)
-        .map_err(|_| TokenError::InvalidSignature)
+    Ok(())
 }
 
 /// Checks if a token is expired based on max age.
 ///
 /// # Errors
 ///
-/// Returns [`TokenError::InvalidFormat`] if the token cannot be decoded or parsed.
-/// Returns [`TokenError::InvalidTimestamp`] if the timestamp is negative or represents a future time.
-pub fn is_expired(token: &str, max_age_seconds: u64) -> Result<bool, TokenError> {
+/// Returns [`Error::InvalidFormat`] if the token cannot be decoded or parsed.
+/// Returns [`Error::InvalidTimestamp`] if the timestamp is negative or represents a future time.
+pub fn is_expired(token: &str, max_age_seconds: u64) -> Result<bool, Error> {
     let timestamp = extract_timestamp(token)?;
 
     if timestamp < 0 {
-        return Err(TokenError::InvalidTimestamp);
+        return Err(Error::InvalidTimestamp);
     }
 
     let now = current_timestamp();
     let age = now - timestamp;
 
     if age < 0 {
-        return Err(TokenError::InvalidTimestamp);
+        return Err(Error::InvalidTimestamp);
     }
 
     Ok(age >= max_age_seconds as i64)
@@ -239,23 +238,23 @@ pub fn is_expired(token: &str, max_age_seconds: u64) -> Result<bool, TokenError>
 ///
 /// # Errors
 ///
-/// Returns [`TokenError::InvalidFormat`] if the token cannot be decoded or parsed.
-/// Returns [`TokenError::InvalidTimestamp`] if the timestamp cannot be converted to a valid DateTime.
+/// Returns [`Error::InvalidFormat`] if the token cannot be decoded or parsed.
+/// Returns [`Error::InvalidTimestamp`] if the timestamp cannot be converted to a valid DateTime.
 #[inline]
-pub fn extract_datetime(token: &str) -> Result<DateTime<Utc>, TokenError> {
+pub fn extract_datetime(token: &str) -> Result<DateTime<Utc>, Error> {
     let timestamp = extract_timestamp(token)?;
     Utc.timestamp_opt(timestamp, 0)
         .single()
-        .ok_or(TokenError::InvalidTimestamp)
+        .ok_or(Error::InvalidTimestamp)
 }
 
 /// Calculates the age of a token in seconds to current time.
 ///
 /// # Errors
 ///
-/// Returns [`TokenError::InvalidFormat`] if the token cannot be decoded or parsed.
+/// Returns [`Error::InvalidFormat`] if the token cannot be decoded or parsed.
 #[inline]
-pub fn token_age(token: &str) -> Result<i64, TokenError> {
+pub fn token_age(token: &str) -> Result<i64, Error> {
     let timestamp = extract_timestamp(token)?;
     Ok(current_timestamp() - timestamp)
 }
@@ -264,19 +263,16 @@ pub fn token_age(token: &str) -> Result<i64, TokenError> {
 ///
 /// # Errors
 ///
-/// Returns [`TokenError::InvalidFormat`] if the token cannot be decoded,
+/// Returns [`Error::InvalidFormat`] if the token cannot be decoded,
 /// is not valid UTF-8, or doesn't contain a valid timestamp.
 #[inline]
-pub fn extract_timestamp(token: &str) -> Result<i64, TokenError> {
+pub fn extract_timestamp(token: &str) -> Result<i64, Error> {
     let decoded = URL_SAFE_NO_PAD
         .decode(token)
-        .map_err(|_| TokenError::InvalidFormat)?;
-    let decoded_str = String::from_utf8(decoded).map_err(|_| TokenError::InvalidFormat)?;
-    let timestamp_str = decoded_str
-        .split(':')
-        .next()
-        .ok_or(TokenError::InvalidFormat)?;
-    timestamp_str.parse().map_err(|_| TokenError::InvalidFormat)
+        .map_err(|_| Error::InvalidFormat)?;
+    let decoded_str = String::from_utf8(decoded).map_err(|_| Error::InvalidFormat)?;
+    let timestamp_str = decoded_str.split(':').next().ok_or(Error::InvalidFormat)?;
+    timestamp_str.parse().map_err(|_| Error::InvalidFormat)
 }
 
 /// Generates a random 32-byte secret key.
@@ -292,13 +288,13 @@ pub fn current_timestamp() -> i64 {
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
-pub enum TokenError {
-    #[error("token format is invalid")]
+pub enum Error {
+    #[error("invalid token format")]
     InvalidFormat,
-    #[error("token signature is invalid")]
+    #[error("invalid token signature")]
     InvalidSignature,
-    #[error("token has expired")]
+    #[error("expired token")]
     Expired,
-    #[error("token timestamp is invalid")]
+    #[error("invalid token timestamp")]
     InvalidTimestamp,
 }

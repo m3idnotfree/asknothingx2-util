@@ -193,24 +193,28 @@ impl<'a> HeaderMut<'a> {
 }
 
 impl<'a> HeaderMut<'a> {
+    pub fn accept<T: crate::api::mime_type::IntoMimeHeaderValue>(
+        &mut self,
+        mime_type: T,
+    ) -> &mut Self {
+        self.header
+            .insert(ACCEPT, mime_type.into_mime_header_value());
+        self
+    }
+
     /// ACCEPT: application/json
     pub fn accept_json(&mut self) -> &mut Self {
-        self.header
-            .insert(ACCEPT, Application::Json.to_header_value());
-        self
+        self.accept(Application::Json)
     }
 
     /// ACCEPT: text/html
     pub fn accept_html(&mut self) -> &mut Self {
-        self.header.insert(ACCEPT, Text::Html.to_header_value());
-        self
+        self.accept(Text::Html)
     }
 
     /// ACCEPT: text/plain
     pub fn accept_text(&mut self) -> &mut Self {
-        self.header
-            .insert(ACCEPT, HeaderValue::from_static("text/plain"));
-        self
+        self.accept(Text::Plain)
     }
 
     /// ACCEPT: */*
@@ -245,39 +249,38 @@ impl<'a> HeaderMut<'a> {
 }
 
 impl<'a> HeaderMut<'a> {
+    pub fn content_type<T: crate::api::mime_type::IntoMimeHeaderValue>(
+        &mut self,
+        mime_type: T,
+    ) -> &mut Self {
+        self.header
+            .insert(CONTENT_TYPE, mime_type.into_mime_header_value());
+        self
+    }
+
     /// CONTENT-TYPE: application/x-www-form-urlencoded
     pub fn content_type_formencoded(&mut self) -> &mut Self {
-        self.header
-            .insert(CONTENT_TYPE, Application::FormUrlEncoded.to_header_value());
-        self
+        self.content_type(Application::FormUrlEncoded)
     }
 
     /// CONTENT-TYPE: application/json
     pub fn content_type_json(&mut self) -> &mut Self {
-        self.header
-            .insert(CONTENT_TYPE, Application::Json.to_header_value());
-        self
+        self.content_type(Application::Json)
     }
 
     /// CONTENT-TYPE: text/plain
     pub fn content_type_text(&mut self) -> &mut Self {
-        self.header
-            .insert(CONTENT_TYPE, Text::Plain.to_header_value());
-        self
+        self.content_type(Text::Plain)
     }
 
     /// CONTENT-TYPE: text/html
     pub fn content_type_html(&mut self) -> &mut Self {
-        self.header
-            .insert(CONTENT_TYPE, Text::Html.to_header_value());
-        self
+        self.content_type(Text::Html)
     }
 
     /// CONTENT-TYPE: multipart/form-data
     pub fn content_type_multipart(&mut self) -> &mut Self {
-        self.header
-            .insert(CONTENT_TYPE, Multipart::FormData.to_header_value());
-        self
+        self.content_type(Multipart::FormData)
     }
 }
 

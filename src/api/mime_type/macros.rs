@@ -200,6 +200,14 @@ macro_rules! define_mime_type {
         //     }
         // }
 
+        impl $crate::api::mime_type::private::Sealed for $enum_name {}
+
+        impl $crate::api::mime_type::IntoMimeHeaderValue for $enum_name {
+            fn into_mime_header_value(self) -> HeaderValue {
+                self.to_header_value()
+            }
+        }
+
         #[cfg(test)]
         use proptest::strategy::Strategy;
 

@@ -23,6 +23,14 @@ pub use multipart::Multipart;
 pub use text::Text;
 pub use video::Video;
 
+mod private {
+    pub trait Sealed {}
+}
+
+pub trait IntoMimeHeaderValue: private::Sealed {
+    fn into_mime_header_value(self) -> ::http::HeaderValue;
+}
+
 // #[derive(Debug, Clone, Eq)]
 // pub enum MimeType {
 //     Application(Application),

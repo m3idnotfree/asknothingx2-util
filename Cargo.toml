@@ -36,7 +36,6 @@ chrono = { version = "0.4.45", optional = true }
 hex = { version = "0.4.3", optional = true }
 hmac = { version = "0.13.0", optional = true }
 http = { version = "1.5.0", optional = true }
-http-body-util = { version = "0.1.5", optional = true }
 hyper = { version = "1.11.1", features = ["http1", "server"], optional = true }
 hyper-util = { version = "0.1.21", features = ["tokio"], optional = true }
 percent-encoding = "2.3.2"
@@ -68,6 +67,6 @@ wiremock = "0.6.5"
 api = ["base64", "bytes", "dep:reqwest", "dep:tokio", "http", "serde_json", "serde_urlencoded", "tokio?/fs", "tokio?/process", "tokio?/sync", "tracing", "url"]
 full = ["api", "oauth"]
 oauth = ["base64", "chrono", "hex", "hmac", "rand", "sha2", "subtle", "url", "zeroize"]
-oauth-server = ["dep:tokio", "http-body-util", "hyper", "hyper-util", "serde_json", "serde_urlencoded", "tokio?/macros", "tokio?/net", "tokio?/signal", "tokio?/sync", "tokio?/time", "tracing"]
+oauth-server = ["dep:tokio", "hyper", "hyper-util", "serde_json", "serde_urlencoded", "tokio?/macros", "tokio?/net", "tokio?/signal", "tokio?/sync", "tokio?/time", "tracing"]
 reqwest = ["dep:reqwest"]
 serde = ["serde_json"]

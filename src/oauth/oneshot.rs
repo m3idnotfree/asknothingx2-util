@@ -50,15 +50,15 @@ use std::{
     time::Duration,
 };
 
-use http_body_util::Full;
 use hyper::{
     Method, Request, Response, StatusCode,
-    body::{Bytes, Incoming},
+    body::Incoming,
+    header::{CONTENT_TYPE, HeaderValue},
     server::conn::http1,
     service::service_fn,
 };
 use hyper_util::rt::TokioIo;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle, time::sleep};
 use tracing::debug;
 
@@ -142,13 +142,13 @@ where
     let (tx, rx) = oneshot::channel::<Result<T, Error>>();
 
     let state = Arc::new(AppState {
-        tx: Arc::new(Mutex::new(Some(tx))),
+        tx: Mutex::new(Some(tx)),
         path: config.path,
         message: config.message,
     });
 
     let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
-    debug!("Starting OAuth callback server on {}", addr);
+    debug!(%addr, "starting OAuth callback server");
 
     let listener = TcpListener::bind(&addr)
         .await
@@ -157,10 +157,13 @@ where
             source: e,
         })?;
 
-    let server_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+    let server_handle: JoinHandle<IoError> = tokio::spawn(async move {
         loop {
-            let (stream, remote_addr) = listener.accept().await?;
-            debug!("Accepted connection from {}", remote_addr);
+            let (stream, remote_addr) = match listener.accept().await {
+                Ok(accepted) => accepted,
+                Err(e) => return e,
+            };
+            debug!(%remote_addr, "accepted connection");
 
             let io = TokioIo::new(stream);
             let state = state.clone();
@@ -169,7 +172,7 @@ where
                 let service = service_fn(|req| handle_request::<T>(req, state.clone()));
 
                 if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
-                    debug!("Error serving connection: {:?}", err);
+                    debug!(error = %err, "failed to serve connection");
                 }
             });
         }
@@ -177,42 +180,38 @@ where
 
     tokio::select! {
         result = rx => {
-            debug!("Shutdown OAuth callback server");
-            server_handle.abort();
+            debug!("stopping OAuth callback server");
             match result {
-                Ok(Ok(callback)) => Ok(callback),
-                Ok(Err(e)) => Err(e),
-                Err(_) => Err(Error::Shutdown),
+                Ok(result) => {
+                    server_handle.abort();
+                    result
+                }
+                Err(_) => {
+                    let result = server_handle.await;
+                    Err(Error::Io(result.unwrap_or_else(IoError::from)))
+                }
             }
         }
         _ = sleep(config.duration) => {
-            debug!("OAuth callback server timed out");
             server_handle.abort();
             Err(Error::Timeout)
         }
         _ = tokio::signal::ctrl_c() => {
-            debug!("OAuth callback server received shutdown signal");
             server_handle.abort();
             Err(Error::Shutdown)
         }
     }
 }
 struct AppState<T> {
-    #[allow(clippy::type_complexity)]
-    tx: Arc<Mutex<Option<oneshot::Sender<Result<T, Error>>>>>,
+    tx: Mutex<Option<oneshot::Sender<Result<T, Error>>>>,
     path: String,
-    message: String,
-}
-
-#[derive(serde::Serialize)]
-struct CallbackResponse {
     message: String,
 }
 
 async fn handle_request<T>(
     req: Request<Incoming>,
     state: Arc<AppState<T>>,
-) -> Result<Response<Full<Bytes>>, Infallible>
+) -> Result<Response<String>, Infallible>
 where
     T: DeserializeOwned + Send + 'static,
 {
@@ -220,26 +219,23 @@ where
     let path = req.uri().path();
     let query = req.uri().query().unwrap_or("");
 
-    debug!("Received request: {} {} (query: {})", method, path, query);
+    debug!(%method, path, query, "received request");
 
     if method != Method::GET {
-        debug!("Unexpected HTTP method: expected GET, got {}", method);
-
         if let Some(sender) = state.tx.lock().unwrap().take() {
             let _ = sender.send(Err(Error::UnexpectedMethod {
                 method: method.clone(),
             }));
         }
 
-        return Ok(error_response(
+        return Ok(json_response(
             StatusCode::METHOD_NOT_ALLOWED,
+            "error",
             "Method not allowed",
         ));
     }
 
     if path != state.path {
-        debug!("Unexpected path: expected '{}', got '{}'", state.path, path);
-
         if let Some(sender) = state.tx.lock().unwrap().take() {
             let _ = sender.send(Err(Error::UnexpectedPath {
                 expected: state.path.to_string(),
@@ -247,18 +243,13 @@ where
             }));
         }
 
-        return Ok(error_response(StatusCode::NOT_FOUND, "Not found"));
+        return Ok(json_response(StatusCode::NOT_FOUND, "error", "Not found"));
     }
 
     let params: T = match serde_urlencoded::from_str(query) {
-        Ok(p) => {
-            debug!("Successfully parsed OAuth callback parameters");
-            p
-        }
+        Ok(p) => p,
         Err(e) => {
             let error_msg = e.to_string();
-            debug!("Failed to parse OAuth callback query `{}`: {}", query, e);
-
             if let Some(sender) = state.tx.lock().unwrap().take() {
                 let _ = sender.send(Err(Error::InvalidQuery {
                     query: query.to_string(),
@@ -266,7 +257,7 @@ where
                 }));
             }
 
-            return Ok(error_response(StatusCode::BAD_REQUEST, &error_msg));
+            return Ok(json_response(StatusCode::BAD_REQUEST, "error", &error_msg));
         }
     };
 
@@ -274,25 +265,17 @@ where
         let _ = sender.send(Ok(params));
     }
 
-    let response = CallbackResponse {
-        message: state.message.clone(),
-    };
-
-    Ok(json_response(StatusCode::OK, &response))
+    Ok(json_response(StatusCode::OK, "message", &state.message))
 }
 
-fn json_response<T: Serialize>(status: StatusCode, body: &T) -> Response<Full<Bytes>> {
-    let json = serde_json::to_vec(body).unwrap();
-    Response::builder()
-        .status(status)
-        .header("Content-Type", "application/json")
-        .body(Full::new(Bytes::from(json)))
-        .unwrap()
-}
-
-fn error_response(status: StatusCode, message: &str) -> Response<Full<Bytes>> {
-    let error = serde_json::json!({ "error": message });
-    json_response(status, &error)
+fn json_response(status: StatusCode, key: &str, message: &str) -> Response<String> {
+    let body = serde_json::json!({ key: message }).to_string();
+    let mut response = Response::new(body);
+    *response.status_mut() = status;
+    response
+        .headers_mut()
+        .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    response
 }
 
 #[derive(Debug, thiserror::Error)]

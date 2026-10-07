@@ -151,7 +151,7 @@ macro_rules! url_type {
         $(#[$attr:meta])*
         $name:ident
     ) => (
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
         #[serde(transparent)]
         $(#[$attr])*
         pub struct  $name(String);
@@ -162,7 +162,7 @@ macro_rules! url_type {
             }
 
             pub fn to_url(&self) -> Url {
-                Url::parse(&self.0).unwrap()
+                Url::parse(&self.0).expect("validated when the value was created")
             }
         }
 
@@ -191,6 +191,17 @@ macro_rules! url_type {
 
             fn deref(&self) -> &str {
                 self.as_str()
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                String::deserialize(deserializer)?
+                    .parse()
+                    .map_err(serde::de::Error::custom)
             }
         }
     )

@@ -4,7 +4,7 @@ use std::{
 };
 
 // use http::header::ToStrError;
-use http::header::{HeaderName, InvalidHeaderValue};
+use http::header::InvalidHeaderValue;
 
 pub struct Error {
     inner: Box<Inner>,
@@ -18,7 +18,6 @@ struct Inner {
 }
 
 enum Kind {
-    HeaderValue { name: HeaderName },
     AuthScheme { scheme: String },
     // MimeType(MimeType),
 }
@@ -34,7 +33,6 @@ enum Kind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    Header,
     AuthScheme,
     // MimeType,
 }
@@ -42,7 +40,6 @@ pub enum ErrorKind {
 impl ErrorKind {
     pub const fn as_str(self) -> &'static str {
         match self {
-            ErrorKind::Header => "header",
             ErrorKind::AuthScheme => "auth_scheme",
             // ErrorKind::MimeType => "mime_type",
         }
@@ -52,7 +49,6 @@ impl ErrorKind {
 impl Error {
     pub fn kind(&self) -> ErrorKind {
         match self.inner.kind {
-            Kind::HeaderValue { .. } => ErrorKind::Header,
             Kind::AuthScheme { .. } => ErrorKind::AuthScheme,
             // Kind::MimeType(_) => ErrorKind::MimeType,
         }
@@ -83,9 +79,6 @@ impl Debug for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match &self.inner.kind {
-            Kind::HeaderValue { name } => {
-                write!(f, "invalid value for HTTP header {:?}", name.as_str())
-            }
             Kind::AuthScheme { scheme } => {
                 write!(
                     f,
@@ -110,13 +103,6 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self.inner.source.as_ref().map(|e| &**e as _)
     }
-}
-
-pub(crate) fn invalid_header_value(name: &HeaderName, source: InvalidHeaderValue) -> Error {
-    Error::new(
-        Kind::HeaderValue { name: name.clone() },
-        Some(source.into()),
-    )
 }
 
 pub(crate) fn invalid_auth_scheme(scheme: impl Into<String>, source: InvalidHeaderValue) -> Error {
@@ -160,12 +146,7 @@ pub(crate) fn invalid_auth_scheme(scheme: impl Into<String>, source: InvalidHead
 
 #[cfg(test)]
 mod tests {
-    use http::{
-        HeaderMap,
-        header::{AUTHORIZATION, COOKIE},
-    };
-
-    use crate::api::{AuthScheme, HeaderMut};
+    use crate::api::AuthScheme;
 
     use super::*;
 
@@ -186,45 +167,5 @@ mod tests {
             "invalid authorization header value for scheme \"OAuth\""
         );
         assert!(!format!("{err:?}").contains("secret\n"));
-    }
-
-    #[test]
-    fn invalid_header_value_error_does_not_leak_value() {
-        let secret: &str = "s3cret";
-        let value = format!("{secret}\n");
-
-        let mut headers = HeaderMap::new();
-        let mut header = HeaderMut::new(&mut headers);
-
-        let cases = [
-            ("client-id", header.client_id(&value).err()),
-            ("client-secret", header.client_secret(&value).err()),
-            ("x-api-key", header.api_key(&value).err()),
-            (
-                "authorization",
-                header.header_str_sensitive(AUTHORIZATION, &value).err(),
-            ),
-            ("cookie", header.header_str(COOKIE, &value).err()),
-        ];
-
-        for (name, err) in cases {
-            let err = err.unwrap();
-
-            assert_eq!(err.kind(), ErrorKind::Header);
-            assert_eq!(
-                err.to_string(),
-                format!("invalid value for HTTP header {name:?}")
-            );
-            assert!(!format!("{err:?}").contains(secret));
-
-            let mut source = err.source();
-            while let Some(cause) = source {
-                assert!(!cause.to_string().contains(secret));
-                assert!(!format!("{cause:?}").contains(secret));
-                source = cause.source();
-            }
-        }
-
-        assert!(headers.is_empty());
     }
 }

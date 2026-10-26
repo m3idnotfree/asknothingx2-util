@@ -1,5 +1,4 @@
 pub mod mime_type;
-pub mod preset;
 
 mod auth_scheme;
 mod error;
@@ -11,14 +10,3 @@ pub use header_mut::HeaderMut;
 
 // Re-export
 pub use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
-
-#[cfg(feature = "reqwest")]
-pub use reqwest;
-
-pub trait IntoRequestBuilder {
-    type Error;
-    fn into_request_builder(
-        self,
-        client: &reqwest::Client,
-    ) -> Result<reqwest::RequestBuilder, Self::Error>;
-}

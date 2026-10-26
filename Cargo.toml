@@ -40,7 +40,6 @@ hyper = { version = "1.11.1", features = ["http1", "server"], optional = true }
 hyper-util = { version = "0.1.21", features = ["tokio"], optional = true }
 percent-encoding = "2.3.2"
 rand = { version = "0.10.3", optional = true }
-reqwest = { version = "0.13.5", features = ["brotli", "cookies", "gzip", "hickory-dns", "json", "multipart", "stream"], optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", optional = true }
 serde_urlencoded = { version = "0.7.1", optional = true }
@@ -64,9 +63,8 @@ tracing-subscriber = { version = "0.3.23", features = ["fmt"] }
 wiremock = "0.6.5"
 
 [features]
-api = ["base64", "bytes", "dep:reqwest", "dep:tokio", "http", "serde_json", "serde_urlencoded", "tokio?/fs", "tokio?/process", "tokio?/sync", "tracing", "url"]
+api = ["base64", "bytes", "dep:tokio", "http", "serde_json", "serde_urlencoded", "tokio?/fs", "tokio?/process", "tokio?/sync", "tracing", "url"]
 full = ["api", "oauth"]
 oauth = ["base64", "chrono", "hex", "hmac", "rand", "sha2", "subtle", "url", "zeroize"]
 oauth-server = ["dep:tokio", "hyper", "hyper-util", "serde_json", "serde_urlencoded", "tokio?/macros", "tokio?/net", "tokio?/signal", "tokio?/sync", "tokio?/time", "tracing"]
-reqwest = ["dep:reqwest"]
 serde = ["serde_json"]

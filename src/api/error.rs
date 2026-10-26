@@ -18,7 +18,6 @@ struct Inner {
 }
 
 enum Kind {
-    Build,
     HeaderValue { name: HeaderName },
     AuthScheme { scheme: String },
     // MimeType(MimeType),
@@ -35,7 +34,6 @@ enum Kind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    Build,
     Header,
     AuthScheme,
     // MimeType,
@@ -44,7 +42,6 @@ pub enum ErrorKind {
 impl ErrorKind {
     pub const fn as_str(self) -> &'static str {
         match self {
-            ErrorKind::Build => "build",
             ErrorKind::Header => "header",
             ErrorKind::AuthScheme => "auth_scheme",
             // ErrorKind::MimeType => "mime_type",
@@ -55,7 +52,6 @@ impl ErrorKind {
 impl Error {
     pub fn kind(&self) -> ErrorKind {
         match self.inner.kind {
-            Kind::Build => ErrorKind::Build,
             Kind::HeaderValue { .. } => ErrorKind::Header,
             Kind::AuthScheme { .. } => ErrorKind::AuthScheme,
             // Kind::MimeType(_) => ErrorKind::MimeType,
@@ -87,7 +83,6 @@ impl Debug for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match &self.inner.kind {
-            Kind::Build => f.write_str("failed to build HTTP client"),
             Kind::HeaderValue { name } => {
                 write!(f, "invalid value for HTTP header {:?}", name.as_str())
             }
@@ -115,10 +110,6 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self.inner.source.as_ref().map(|e| &**e as _)
     }
-}
-
-pub(crate) fn build(source: reqwest::Error) -> Error {
-    Error::new(Kind::Build, Some(source.into()))
 }
 
 pub(crate) fn invalid_header_value(name: &HeaderName, source: InvalidHeaderValue) -> Error {
